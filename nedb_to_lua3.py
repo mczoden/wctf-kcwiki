@@ -17,19 +17,31 @@ MIST_SHIPS = {
         # 伊欧娜
         'kcwiki_id': 'Mist01',
         'modernization': [1, 0, 0, 0],
-        'scrap': [0, 1, 0, 0]
+        'scrap': [0, 1, 0, 0],
+        'cv': '渊上舞',
+        'illustrator': '森田和明',
+        'remodel': {'next_lvl': 0, 'ammo': 0, 'steel': 0,
+                    'prev_kcwiki_id': '-1', 'next_kc_wiki_id': "-1"}
     },
     9182: {
         # 高雄
         'kcwiki_id': 'Mist02',
         'modernization': [1, 0, 0, 0],
-        'scrap': [0, 1, 0, 0]
+        'scrap': [0, 1, 0, 0],
+        'cv': '沼仓爱美',
+        'illustrator': '森田和明',
+        'remodel': {'next_lvl': 0, 'ammo': 0, 'steel': 0,
+                    'prev_kcwiki_id': '-1', 'next_kc_wiki_id': "-1"}
     },
     9183: {
         # 榛名
         'kcwiki_id': 'Mist03',
         'modernization': [1, 0, 0, 0],
-        'scrap': [0, 1, 0, 0]
+        'scrap': [0, 1, 0, 0],
+        'cv': '山村响',
+        'illustrator': '森田和明',
+        'remodel': {'next_lvl': 0, 'ammo': 0, 'steel': 0,
+                    'prev_kcwiki_id': '-1', 'next_kc_wiki_id': "-1"}
     }
 }
 
@@ -239,6 +251,7 @@ def get_ship_scrap(ship, nedb_ship):
     ship['scrap'] = dict(zip(['fire', 'torpedo', 'aa', 'armor'],
                              nedb_ship['scrap']))
 
+
 def get_ship_get_method(ship, nedb_ship):
     '''Get the get method
     '''
@@ -256,25 +269,63 @@ def get_ship_get_method(ship, nedb_ship):
     }
 
 
-def get_ship_cv_illustrator(ship, nedb_ship, nedb_entities):
+def get_ship_cv_illustrator(ship, nedb_ship, nedb_ships, nedb_entities):
     '''Get CV and illustrator
     '''
-    try:
-        cv_id = nedb_ship['rels']['cv']
-        illustrator_id = nedb_ship['rels']['illustrator']
-    except KeyError:
-    ship['cv'] = nedb_entities[cv_id]['name']['zh_cn']
-    illustrator_id = nedb_entities[illustrator_id]['name']['zh_cn']
+    if ship['id'] in MIST_SHIPS:
+        ship['cv'] = MIST_SHIPS[ship['id']]['cv']
+        ship['illustrator'] = MIST_SHIPS[ship['id']]['illustrator']
+        return
+
+    while nedb_ship['name']['suffix'] is not None:
+        # Get the previous nedb_ship until suffix id is not None
+        prev_nedb_ship_id = nedb_ship['remodel']['prev']
+        nedb_ship = nedb_ships[prev_nedb_ship_id]
+
+    cv_id = nedb_ship['rels']['cv']
+    if cv_id:
+        # TODO:
+        # KcWiki delete the space in name
+        # But if the CV is not japanese name, space should be kept
+        #
+        # Use third part package "langid" to check the language
+        ship['cv'] = nedb_entities[cv_id]['name']['ja_jp'].replace(' ', '')
+    else:
+        ship['cv'] = ''
+
+    illustrator_id = nedb_ship['rels']['illustrator']
+    if illustrator_id:
+        # TODO:
+        # Same as the comments of CV
+        ship['illustrator'] = nedb_entities[illustrator_id]['name']['ja_jp'].replace(' ', '')
+    else:
+        ship['illustrator'] = ''
+
 
 def get_ship_remodel(ship, nedb_ship, ship_id_kcwiki_id_table):
     '''Get the remodel information
     '''
-    ship['remodel'] = {}
+    if ship['id'] in MIST_SHIPS:
+        ship['remodel'] = MIST_SHIPS[ship['id']]['remodel']
+        return
+
+    ship['remodel'] = {
+        'next_lvl': 0,
+        'ammo': 0,
+        'steel': 0,
+        'prev_kcwiki_id': '-1',
+        'next_kcwiki_id': '-1'
+    }
     # Get remodel level
     if 'next' in nedb_ship['remodel']:
-        ship['remodel']['level'] = nedb_ship['remodel']['next_lvl']
+        ship['remodel']['next_lvl'] = nedb_ship['remodel']['next_lvl']
+        ship['remodel']['ammo'] = nedb_ship['remodel_cost']['ammo']
+        ship['remodel']['steel'] = nedb_ship['remodel_cost']['steel']
         ship['remodel']['next_kcwiki_id'] = \
             ship_id_kcwiki_id_table[nedb_ship['remodel']['next']]
+    if 'prev' in nedb_ship['remodel']:
+        ship['remodel']['prev_kcwiki_id'] = \
+            ship_id_kcwiki_id_table[nedb_ship['remodel']['prev']]
 
 
 def main():
@@ -298,6 +349,7 @@ def main():
     }
 
     ship_id_kcwiki_id_table = {}
+    ships = {}
     for nedb_ship in nedb_ships.values():
         ship = {'id': nedb_ship['id']}
 
@@ -314,14 +366,21 @@ def main():
         get_ship_scrap(ship, nedb_ship)
         get_ship_kcwiki_id(ship, nedb_ship, nedb_ships)
         get_ship_get_method(ship, nedb_ship)
-        get_ship_cv_illustrator(ship, nedb_ship, nedb_entities)
+        get_ship_cv_illustrator(ship, nedb_ship, nedb_ships, nedb_entities)
 
         ship_id_kcwiki_id_table[ship['id']] = ship['kcwiki_id']
+        ships[ship['id']] = ship
 
-        print()
-        # print(ship['zh_cn'].encode('utf-8'))
-        # pprint(ship)
-        pprint(ship)
+    for ship_id in ship_id_kcwiki_id_table:
+        ship = ships[ship_id]
+        nedb_ship = nedb_ships[ship_id]
+        try:
+            get_ship_remodel(ship, nedb_ship, ship_id_kcwiki_id_table)
+        except KeyError:
+            print(ship_id)
+            raise
+
+    pprint(ships)
 
 
 
